@@ -232,11 +232,12 @@ end
 function request_depot:update_circuit_reader()
   if self.circuit_reader and self.circuit_reader.valid then
     local behavior = self.circuit_reader.get_or_create_control_behavior()
-    local signal
+    local parameters = {}
     if self.item then
-      signal = {signal = {type = self.mode == request_mode.item and "item" or "fluid", name = self.item}, count = self:get_current_amount()}
+      parameters[1] = {index=1, signal = {type = self.mode == request_mode.item and "item" or "fluid", name = self.item}, count = self:get_current_amount()}
     end
-    behavior.set_signal(1, signal)
+
+    behavior.parameters = parameters
   end
 end
 

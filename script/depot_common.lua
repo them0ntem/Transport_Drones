@@ -135,7 +135,7 @@ local add_depot_to_node = function(depot)
   if not node then
     depot:on_removed({})
     depot.entity.destroy()
-    --log("Wtf, depot with no node... killing it"..serpent.line(depot))
+    print("Wtf, depot with no node... killing it"..serpent.line(depot))
     return
   end
   node.depots = node.depots or {}
@@ -210,11 +210,11 @@ local circuit_reader_built = function(entity)
   search_position.y = search_position.y + offset[2]
 
   entity.rotatable = false
-
   local attached = false
 
   for k, found_entity in pairs (entity.surface.find_entities_filtered{position = search_position}) do
     local this_depot = get_depot(found_entity)
+    print(k, found_entity.name)
     if this_depot then
       if not (this_depot.circuit_reader and this_depot.circuit_reader.valid) then
         this_depot.circuit_reader = entity

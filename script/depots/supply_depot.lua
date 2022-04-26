@@ -93,8 +93,28 @@ had iron 10
 now iron 5
 ]]
 
+function supply_depot:update_circuit_reader()
+  if self.circuit_reader and self.circuit_reader.valid then
+    local index_number = 1
+    local parameters = {}
+    for name, _ in pairs (self.old_contents) do
+      if index_number < 20 then
+        local available_count = self:get_available_item_count(name)
+        local signal = {type = "item", name=name}
+
+        parameters[index_number] = {index = index_number, signal = {type = "item", name=name}, count=available_count}
+        
+        index_number = index_number + 1
+      end
+    end
+
+    self.circuit_reader.get_or_create_control_behavior().parameters = parameters
+  end
+end
+
 function supply_depot:update()
   self:update_contents()
+  self:update_circuit_reader()
 
 end
 

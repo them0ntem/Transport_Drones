@@ -85,6 +85,7 @@ end
 
 function network_reader:add_to_network()
   self.network_id = self.road_network.get_node(self.entity.surface.index, self.node_position[1], self.node_position[2]).id
+  print(self.network_id)
 end
 
 function network_reader:remove_from_network()
