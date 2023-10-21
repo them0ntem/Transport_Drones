@@ -35,11 +35,16 @@ local process_road_item = function(item)
 
   local tile = tiles[item.place_as_tile.result]
   if not tile then return end
-
-  tile.collision_mask = {road_collision_layer}
+  local seen = {}
+  while true do
+    tile.collision_mask = {road_collision_layer}
+    table.insert(road_list, tile.name)
+    seen[tile.name] = true
+    tile = tiles[tile.next_direction or ""]
+    if not tile then break end
+    if seen[tile.name] then break end
+  end
   item.place_as_tile.condition = place_as_tile_condition
-  table.insert(road_list, tile.name)
-
 end
 
 
@@ -72,7 +77,7 @@ shared.drone_collision_mask["colliding-with-tiles-only"] = true
 shared.drone_collision_mask["consider-tile-transitions"] = true
 
 for k, prototype in pairs (collision_mask_util.collect_prototypes_with_layer("player-layer")) do
-  if prototype.type ~= "gate" then
+  if prototype.type ~= "gate" and prototype.type ~= "tile" then
     local mask = collision_mask_util.get_mask(prototype)
     if collision_mask_util.mask_contains_layer(mask, "item-layer") then
       collision_mask_util.add_layer(mask, road_collision_layer)
@@ -93,6 +98,8 @@ end
     prototype.collision_mask = mask
   end
 ]]
+
+--error(serpent.block(road_list))
 
 --So you don't place any tiles over road.
 

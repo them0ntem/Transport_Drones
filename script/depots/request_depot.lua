@@ -35,7 +35,7 @@ local request_mode =
   fluid = 2
 }
 
-function request_depot.new(entity)
+function request_depot.new(entity, tags)
 
   local force = entity.force
   local surface = entity.surface
@@ -60,8 +60,37 @@ function request_depot.new(entity)
   }
   setmetatable(depot, request_depot.metatable)
 
+  depot:read_tags(tags)
+
   return depot
 
+end
+
+function request_depot:read_tags(tags)
+  if tags then
+    if tags.transport_depot_tags then
+      local drone_count = tags.transport_depot_tags.drone_count
+      if drone_count and drone_count > 0 then
+        self.entity.surface.create_entity
+        {
+          name = "item-request-proxy",
+          position = self.entity.position,
+          force = self.entity.force,
+          target = self.entity,
+          modules = {["transport-drone"] = drone_count}
+        }
+      end
+    end
+  end
+end
+
+function request_depot:save_to_blueprint_tags()
+  local count = self:get_drone_item_count()
+  if count == 0 then return end
+  return
+  {
+    drone_count = count
+  }
 end
 
 function request_depot:remove_fuel(amount)
@@ -236,8 +265,12 @@ function request_depot:update_circuit_reader()
     if self.item then
       parameters[1] = {index=1, signal = {type = self.mode == request_mode.item and "item" or "fluid", name = self.item}, count = self:get_current_amount()}
     end
-
-    behavior.parameters = parameters
+    behavior.set_signal(1, signal)
+    local drone_signal
+    if self.item then
+      drone_signal = {signal = {type = "virtual", name = "signal-D"}, count = self:get_drone_item_count()}
+    end
+    behavior.set_signal(2, drone_signal)
   end
 end
 
@@ -264,6 +297,7 @@ function request_depot:suicide_all_drones()
 end
 
 function request_depot:set_request_mode()
+  self.mode = nil
   local recipe = self.entity.get_recipe()
   if not recipe then return end
 
@@ -313,7 +347,9 @@ local stack_cache = {}
 local get_stack_size = function(item)
   local size = stack_cache[item]
   if not size then
-    size = game.item_prototypes[item].stack_size
+    local prototype = game.item_prototypes[item]
+    if not prototype then error("what? "..item) end
+    size = prototype.stack_size
     stack_cache[item] = size
   end
   return size
@@ -566,7 +602,7 @@ function request_depot:on_removed()
 end
 
 function request_depot:on_config_changed()
-  self.mode = self.mode or request_mode.item
+  self:set_request_mode()
   self.fuel_on_the_way = self.fuel_on_the_way or 0
 end
 

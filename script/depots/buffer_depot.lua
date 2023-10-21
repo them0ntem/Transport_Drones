@@ -40,7 +40,7 @@ local request_mode =
   fluid = 2
 }
 
-function buffer_depot.new(entity)
+function buffer_depot.new(entity, tags)
 
   local force = entity.force
   local surface = entity.surface
@@ -68,8 +68,37 @@ function buffer_depot.new(entity)
   }
   setmetatable(depot, buffer_depot.metatable)
 
+  depot:read_tags(tags)
+
   return depot
 
+end
+
+function buffer_depot:read_tags(tags)
+  if tags then
+    if tags.transport_depot_tags then
+      local drone_count = tags.transport_depot_tags.drone_count
+      if drone_count and drone_count > 0 then
+        self.entity.surface.create_entity
+        {
+          name = "item-request-proxy",
+          position = self.entity.position,
+          force = self.entity.force,
+          target = self.entity,
+          modules = {["transport-drone"] = drone_count}
+        }
+      end
+    end
+  end
+end
+
+function buffer_depot:save_to_blueprint_tags()
+  local count = self:get_drone_item_count()
+  if count == 0 then return end
+  return
+  {
+    drone_count = count
+  }
 end
 
 function buffer_depot:remove_fuel(amount)
@@ -656,6 +685,7 @@ function buffer_depot:on_removed()
 end
 
 function buffer_depot:on_config_changed()
+  self:set_request_mode()
   self.to_be_taken = self.to_be_taken or {}
   self.old_contents = self.old_contents or {}
 end

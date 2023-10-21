@@ -135,8 +135,8 @@ local add_depot_to_node = function(depot)
   if not node then
     depot:on_removed({})
     depot.entity.destroy()
-    print("Wtf, depot with no node... killing it"..serpent.line(depot))
-    return
+    --log("Wtf, depot with no node... killing it"..serpent.line(depot))
+    return true
   end
   node.depots = node.depots or {}
   node.depots[depot.index] = depot
@@ -144,6 +144,7 @@ end
 
 local remove_depot_from_node = function(surface, x, y, depot_index)
   local node = road_network.get_node(surface, x, y)
+  if not node then return end
   node.depots[depot_index] = nil
   road_network.check_clear_lonely_node(surface, x, y)
 end
@@ -267,11 +268,13 @@ local on_created_entity = function(event)
     return
   end
 
-  local depot = depot_lib.new(entity)
+  local depot = depot_lib.new(entity, event.tags)
   script.register_on_entity_destroyed(entity)
   depot.surface_index = entity.surface.index
   script_data.depots[depot.index] = depot
-  add_depot_to_node(depot)
+  if add_depot_to_node(depot) then
+    return
+  end
   depot:add_to_network()
   add_to_update_bucket(depot.index)
 
@@ -330,43 +333,6 @@ local load_depot = function(depot)
   if lib.metatable then
     setmetatable(depot, lib.metatable)
   end
-end
-
-local migrate_depots = function()
-
-  local depots = {}
-  local update_order = {}
-
-  local count = 1
-
-  local request_depots = global.request_depots.request_depots
-  for k, v in pairs (request_depots) do
-    depots[k] = v
-    update_order[count] = k
-    count = count + 1
-  end
-  global.request_depots = nil
-
-  local supply_depots = global.supply_depots.supply_depots
-  for k, v in pairs (supply_depots) do
-    depots[k] = v
-    update_order[count] = k
-    count = count + 1
-  end
-  global.supply_depots = nil
-
-  script_data.depots = depots
-  script_data.update_order = update_order
-
-  for k, depot in pairs (script_data.depots) do
-    load_depot(depot)
-  end
-
-
-  game.print("Transport drones 0.2.0 update:")
-  game.print("I added fuel depots and fluid depots. The transport drones now need petroleum to work properly, sorry for any inconvenience.")
-  game.print("Thanks for playing with my mod.")
-
 end
 
 local update_depots = function(tick)
@@ -448,6 +414,51 @@ local picker_dolly_blacklist = function()
 
 end
 
+local get_tags = function(blueprint_entity, surface)
+  local name = blueprint_entity.name
+  local lib = depot_libs[name]
+  if not lib then return end
+
+  if name == "supply-depot" then
+    name = "supply-depot-chest"
+  end
+
+  local entity = surface.find_entity(name, blueprint_entity.position)
+  if not entity then return end
+
+  local depot = get_depot(entity)
+  if not depot then return end
+
+  local saver = depot.save_to_blueprint_tags
+  if not saver then return end
+
+  return saver(depot)
+end
+
+
+local on_player_setup_blueprint = function(event)
+  local player = game.get_player(event.player_index)
+  if not (player and player.valid) then return end
+
+  local item = player.cursor_stack
+  if not (item and item.valid_for_read) then
+    item = player.blueprint_to_setup
+    if not (item and item.valid_for_read) then return end
+  end
+
+  local entities = item.get_blueprint_entities()
+  if not (entities and next(entities)) then return end
+
+  local surface = player.surface
+
+  for index, blueprint_entity in pairs(entities) do
+    local tags = get_tags(blueprint_entity, surface)
+    if tags then
+      item.set_blueprint_entity_tag(index, "transport_depot_tags", tags)
+    end
+  end
+end
+
 local lib = {}
 
 lib.events =
@@ -463,9 +474,10 @@ lib.events =
   [defines.events.on_player_mined_entity] = on_entity_removed,
   [defines.events.on_entity_destroyed] = on_entity_destroyed,
 
-  [defines.events.on_tick] = on_tick,
-  [defines.events.on_runtime_mod_setting_changed] = on_runtime_mod_setting_changed,
+  [defines.events.on_player_setup_blueprint] = on_player_setup_blueprint,
 
+  [defines.events.on_tick] = on_tick,
+  [defines.events.on_runtime_mod_setting_changed] = on_runtime_mod_setting_changed
 }
 
 lib.on_init = function()
@@ -487,10 +499,6 @@ lib.on_configuration_changed = function()
 
   global.transport_depots = global.transport_depots or script_data
 
-  if global.request_depots then
-    migrate_depots()
-  end
-
   for k, depot in pairs (script_data.depots) do
     if not depot.entity.valid then
       script_data.depots[k] = nil
@@ -500,26 +508,16 @@ lib.on_configuration_changed = function()
       if depot.on_config_changed then
         depot:on_config_changed()
       end
-      add_depot_to_node(depot)
-      if depot.entity.valid then
+      if not add_depot_to_node(depot) then
         depot:remove_from_network()
         depot:add_to_network()
-      else
-        script_data.depots[k] = nil
+        if depot.to_be_taken then
+          depot.to_be_taken = {}
+        end
+        if depot.fuel_on_the_way then
+          depot.fuel_on_the_way = 0
+        end
       end
-    end
-  end
-
-  for k, depot in pairs (script_data.depots) do
-    if depot.to_be_taken then
-      depot.to_be_taken = {}
-    end
-  end
-
-
-  for k, depot in pairs (script_data.depots) do
-    if depot.fuel_on_the_way then
-      depot.fuel_on_the_way = 0
     end
   end
 

@@ -112,6 +112,7 @@ end
 transport_drone.new = function(request_depot, drone_name)
 
   local entity = request_depot.entity.surface.create_entity{name = get_drone_name(drone_name), position = request_depot.corpse.position, force = request_depot.entity.force}
+  if not (entity and entity.valid) then return end
 
   local drone =
   {
@@ -150,6 +151,7 @@ function transport_drone:pickup_from_supply(supply, item, count)
 
   if not supply.entity.valid then
     self:return_to_requester()
+    return
   end
 
   self.supply_depot = supply
